@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Banco de Backtests</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Mesa de trabajo: panel de estrategia fijo a la izquierda, resultados a la derecha; una columna en el móvil. */
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --fg: #121417; --fg2: #4a5059; --muted: #7d838c; --line: #e2e5ea;
+  --grid: #eceef1; --axis: #c9cdd4; --accent: #2a78d6; --accent-ink: #ffffff;
+  --s1: #2a78d6; --s1-fill: rgba(42,120,214,.10); --neg: #e34948; --neg-fill: rgba(227,73,72,.12);
+  --pos-txt: #1f5fb0; --neg-txt: #c23534;
+  --f-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1114; --panel: #171a1e; --fg: #eef0f3; --fg2: #b9bec6; --muted: #868c95; --line: #262a30;
+  --grid: #22262b; --axis: #383d44; --accent: #3987e5; --accent-ink: #ffffff;
+  --s1: #3987e5; --s1-fill: rgba(57,135,229,.14); --neg: #e66767; --neg-fill: rgba(230,103,103,.15);
+  --pos-txt: #7fb0ef; --neg-txt: #f08c8c; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0f1114; --panel: #171a1e; --fg: #eef0f3; --fg2: #b9bec6; --muted: #868c95; --line: #262a30;
+  --grid: #22262b; --axis: #383d44; --accent: #3987e5; --accent-ink: #ffffff;
+  --s1: #3987e5; --s1-fill: rgba(57,135,229,.14); --neg: #e66767; --neg-fill: rgba(230,103,103,.15);
+  --pos-txt: #7fb0ef; --neg-txt: #f08c8c; color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 14px/1.5 var(--f-sans);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 48px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; padding-block: 22px 18px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
+header h1 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
+header p { margin: 0; color: var(--fg2); }
+.mesa { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 900px) { .mesa { grid-template-columns: minmax(0, 1fr); } }
+form { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: grid; gap: 14px; position: sticky; top: 12px; }
+@media (max-width: 900px) { form { position: static; } }
+fieldset { border: 0; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-width: 0; }
+fieldset[disabled] { opacity: .45; }
+legend, .etq { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 0; margin-bottom: 6px; }
+label { display: grid; gap: 3px; font-size: 12.5px; color: var(--fg2); min-width: 0; }
+label.ancho, .ancho { grid-column: 1 / -1; }
+label.check { display: flex; align-items: center; gap: 8px; color: var(--fg); }
+input, select { font: 13px var(--f-mono); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px; width: 100%; min-width: 0; }
+input[type=checkbox] { width: auto; accent-color: var(--accent); }
+input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+details { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 12px; }
+details[open] { gap: 14px; }
+summary { cursor: pointer; font-weight: 500; }
+.huecos { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px 8px; align-items: center; font-size: 12.5px; color: var(--fg2); }
+button { font: 500 13px var(--f-sans); border-radius: 6px; padding: 9px 12px; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--fg); }
+button.primario { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button:disabled { opacity: .6; cursor: progress; }
+#estado { font: 12px var(--f-mono); color: var(--fg2); min-height: 1.5em; margin: 0; overflow-wrap: anywhere; }
+section { display: grid; gap: 14px; min-width: 0; }
+.bloque { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; min-width: 0; display: grid; gap: 12px; }
+.bloque h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.bloque h2 small { font-weight: 400; color: var(--muted); }
+#tituloRes { margin: 0; font: 500 13px var(--f-mono); color: var(--fg2); overflow-wrap: anywhere; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.kpi { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; display: grid; gap: 2px; background: var(--panel); }
+.kpi span { font: 500 11px var(--f-mono); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.kpi b { font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.kpi small { color: var(--fg2); font-variant-numeric: tabular-nums; }
+.dos { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+@media (max-width: 1100px) { .dos { grid-template-columns: minmax(0, 1fr); } }
+.lienzo { position: relative; height: 240px; }
+.lienzo.bajo { height: 160px; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; font-variant-numeric: tabular-nums; }
+dt { color: var(--fg2); } dd { margin: 0; font-family: var(--f-mono); font-size: 13px; overflow-wrap: anywhere; }
+.scroll { overflow: auto; max-height: 420px; }
+.scroll.libre { max-height: none; }
+table { border-collapse: collapse; width: 100%; font: 12.5px var(--f-mono); font-variant-numeric: tabular-nums; }
+th, td { padding: 5px 8px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th { color: var(--muted); font-weight: 500; position: sticky; top: 0; background: var(--panel); }
+tbody th { position: static; text-align: left; }
+#mensual td.pos { background: color-mix(in srgb, var(--s1) var(--a), transparent); }
+#mensual td.neg { background: color-mix(in srgb, var(--neg) var(--a), transparent); }
+#mensual td.tot { font-weight: 500; }
+.txt-pos { color: var(--pos-txt); } .txt-neg { color: var(--neg-txt); }
+.fila { display: flex; flex-wrap: wrap; gap: 8px; }
+#fondeo { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+.nota { color: var(--muted); font-size: 12px; margin: 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Banco de Backtests</h1>
+  <p>Velas de OKX, estrategias de cruce de EMAs con el mismo motor que los bots, y análisis completo.</p>
+</header>
+
+<div class="mesa">
+  <form id="form" autocomplete="off">
+    <label class="ancho">Estrategia
+      <select id="preset">
+        <option value="definitiva">EmaFinal definitiva (cripto 4h)</option>
+        <option value="oro">Oro EMA 13/34/200 (1h)</option>
+        <option value="propia">Estrategia propia</option>
+      </select>
+    </label>
+    <fieldset>
+      <legend>Mercado</legend>
+      <label class="ancho">Pares (OKX, separados por comas)<input id="pares" placeholder="BTC, ETH, SOL"></label>
+      <label>Temporalidad
+        <select id="tf"><option>15m</option><option>30m</option><option>1H</option><option>2H</option><option>4H</option><option>1D</option></select>
+      </label>
+      <label>Capital (USDT)<input id="capital" type="number" min="1" step="any"></label>
+      <label>Desde<input id="desde" type="date" value="2022-01-01"></label>
+      <label>Hasta<input id="hasta" type="date"></label>
+    </fieldset>
+    <fieldset>
+      <legend>Señal</legend>
+      <label>EMA rápida<input id="rapida" type="number" min="1"></label>
+      <label>EMA lenta<input id="lenta" type="number" min="2"></label>
+      <label>EMA de tendencia<input id="tendencia" type="number" min="2"></label>
+      <label>Dirección
+        <select id="direccion"><option value="ambos">Largos y cortos</option><option value="largos">Solo largos</option><option value="cortos">Solo cortos</option></select>
+      </label>
+      <label>Stop (× ATR)<input id="atrMult" type="number" min="0.1" step="0.1"></label>
+      <label>Periodo ATR<input id="atrN" type="number" min="2"></label>
+      <label class="check ancho"><input id="salidaCompleta" type="checkbox"> Salir solo con la señal contraria completa (cruce + lado de la EMA de tendencia)</label>
+      <label class="check ancho"><input id="sinFinde" type="checkbox"> Sin señales en fin de semana (oro, índices)</label>
+    </fieldset>
+    <fieldset>
+      <legend>Riesgo</legend>
+      <label>Riesgo por operación %<input id="riesgo" type="number" min="0.01" step="0.01"></label>
+      <label>Pérdida diaria máx. %<input id="perdidaDiaria" type="number" min="0.1" step="0.1"></label>
+      <label>Máx. operaciones abiertas<input id="maxAbiertas" type="number" min="1"></label>
+      <label>Apalancamiento máx.<input id="maxApal" type="number" min="1"></label>
+      <label>Comisión maker %<input id="maker" type="number" min="0" step="0.001"></label>
+      <label>Comisión taker %<input id="taker" type="number" min="0" step="0.001"></label>
+    </fieldset>
+    <details>
+      <summary>Filtros de cartera</summary>
+      <label class="check"><input id="fuerza" type="checkbox"> Filtro de fuerza entre los pares</label>
+      <fieldset id="bloqueFuerza">
+        <label>Velas de la subida<input id="fuerzaVelas" type="number" min="1"></label>
+        <label>Excluir (los N más débiles/fuertes)<input id="fuerzaExcluir" type="number" min="0"></label>
+      </fieldset>
+      <label class="check"><input id="regimen" type="checkbox"> Huecos según el régimen (EMAs diarias)</label>
+      <fieldset id="bloqueRegimen">
+        <label>Par de régimen<input id="parRegimen"></label>
+        <label>EMAs diarias<span class="fila"><input id="regRapida" type="number" min="1" style="width:45%"><input id="regLenta" type="number" min="2" style="width:45%"></span></label>
+        <div class="huecos ancho"><span></span><span>Máx. largos</span><span>Máx. cortos</span>
+          <span>Alcista</span><input id="hAL" type="number" min="0" aria-label="Máximo de largos en alcista"><input id="hAC" type="number" min="0" aria-label="Máximo de cortos en alcista">
+          <span>Bajista</span><input id="hBL" type="number" min="0" aria-label="Máximo de largos en bajista"><input id="hBC" type="number" min="0" aria-label="Máximo de cortos en bajista"></div>
+      </fieldset>
+    </details>
+    <button id="lanzar" class="primario" type="submit">Descargar y lanzar backtest</button>
+    <p id="estado" role="status"></p>
+    <div class="fila"><button id="expOps" type="button">Exportar operaciones (CSV)</button><button id="expVelas" type="button">Exportar velas (CSV)</button></div>
+    <p class="nota">Las velas descargadas se guardan en este navegador: el segundo backtest con los mismos pares no vuelve a descargarlas.</p>
+  </form>
+
+  <section id="resultados" hidden>
+    <p id="tituloRes"></p>
+    <div class="kpis" id="kpis"></div>
+    <div class="bloque"><h2>Curva de saldo <small>USDT</small></h2><div class="lienzo"><canvas id="gEquity" aria-label="Curva de saldo"></canvas></div>
+      <h2>Caída desde el máximo <small>%</small></h2><div class="lienzo bajo"><canvas id="gDD" aria-label="Caída desde el máximo"></canvas></div></div>
+    <div class="dos">
+      <div class="bloque"><h2>Resultado por operación <small>USDT, en orden</small></h2><div class="lienzo"><canvas id="gOps" aria-label="Resultado por operación"></canvas></div></div>
+      <div class="bloque"><h2>Distribución de resultados <small>operaciones por tramo de R</small></h2><div class="lienzo"><canvas id="gDist" aria-label="Distribución en R"></canvas></div></div>
+    </div>
+    <div class="dos">
+      <div class="bloque"><h2>Estadísticas</h2><dl id="detalle"></dl></div>
+      <div class="bloque"><h2>Beneficio por par <small>USDT</small></h2><div class="lienzo"><canvas id="gPar" aria-label="Beneficio por par"></canvas></div></div>
+    </div>
+    <div class="dos">
+      <div class="bloque"><h2>Por hora de entrada <small>UTC, USDT</small></h2><div class="lienzo bajo"><canvas id="gHora" aria-label="Beneficio por hora"></canvas></div></div>
+      <div class="bloque"><h2>Por día de entrada <small>UTC, USDT</small></h2><div class="lienzo bajo"><canvas id="gDia" aria-label="Beneficio por día"></canvas></div></div>
+    </div>
+    <div class="bloque"><h2>Rentabilidad mensual <small>% sobre el saldo al empezar el mes</small></h2><div class="scroll libre"><table id="mensual"></table></div></div>
+    <div class="bloque">
+      <h2>Simulador de fondeos <small>las mismas operaciones, en múltiplos de R, encadenando retos</small></h2>
+      <fieldset id="fondeo">
+        <label>Tamaño de cuenta ($)<input id="fTam" type="number" value="100000" min="1000" step="1000"></label>
+        <label>Riesgo por operación %<input id="fRiesgo" type="number" value="1" min="0.05" step="0.05"></label>
+        <label>Objetivo fase 1 %<input id="fObj1" type="number" value="8" min="0.5" step="0.5"></label>
+        <label>Objetivo fase 2 % (0 = una fase)<input id="fObj2" type="number" value="5" min="0" step="0.5"></label>
+        <label>Pérdida máx. total %<input id="fDD" type="number" value="10" min="1" step="0.5"></label>
+        <label>Pérdida máx. diaria %<input id="fDDd" type="number" value="5" min="0.5" step="0.5"></label>
+        <label>Reparto de beneficios %<input id="fRep" type="number" value="80" min="0" max="100" step="5"></label>
+      </fieldset>
+      <div class="kpis" id="fResumen"></div>
+      <div class="scroll"><table id="fTabla"></table></div>
+      <p class="nota">Pérdida máxima total sobre el tamaño inicial; diaria sobre el saldo al empezar el día (UTC). En la cuenta fondeada se cobra a fin de mes el beneficio, y la cuenta vuelve a su tamaño.</p>
+    </div>
+    <div class="bloque"><h2>Operaciones</h2><div class="scroll"><table id="tablaOps"></table></div></div>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="engine.js"></script>
+<script src="presets.js"></script>
+<script src="analisis.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
