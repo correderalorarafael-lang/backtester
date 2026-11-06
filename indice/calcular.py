@@ -6,6 +6,7 @@ Uso: python indice/calcular.py
 """
 import io
 import json
+import os
 import time
 import urllib.parse
 import urllib.request
@@ -30,8 +31,14 @@ def get(url, intentos=4):
 
 
 def fred(sid):
-    s = pd.read_csv(io.StringIO(get(f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={sid}&cosd=2018-01-01")),
-                    index_col=0, parse_dates=True).iloc[:, 0]
+    clave = os.environ.get("FRED_API_KEY", "").strip()
+    if clave:  # API oficial: la descarga CSV de la web de FRED bloquea los servidores de GitHub
+        q = urllib.parse.urlencode({"series_id": sid, "api_key": clave, "file_type": "json", "observation_start": "2018-01-01"})
+        obs = json.loads(get(f"https://api.stlouisfed.org/fred/series/observations?{q}"))["observations"]
+        s = pd.Series({pd.Timestamp(o["date"]): o["value"] for o in obs})
+    else:
+        s = pd.read_csv(io.StringIO(get(f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={sid}&cosd=2018-01-01")),
+                        index_col=0, parse_dates=True).iloc[:, 0]
     return pd.to_numeric(s, errors="coerce").dropna()
 
 
@@ -167,7 +174,8 @@ def main():
             if previo:
                 h = {r[0]: r[3 + "FRELDI".index(letra)] for r in previo["historia"]}
                 comps[letra] = pd.Series([h.get(d.strftime("%Y-%m-%d")) for d in dias], index=dias, dtype=float).ffill()
-                detalles[letra] = next(c["detalle"] for c in previo["actual"]["componentes"] if c["letra"] == letra) + " (sin actualizar)"
+                det = next(c["detalle"] for c in previo["actual"]["componentes"] if c["letra"] == letra)
+                detalles[letra] = det if det.endswith("(sin actualizar)") else det + " (sin actualizar)"
             else:
                 comps[letra] = pd.Series(np.nan, index=dias)
                 detalles[letra] = "sin datos"

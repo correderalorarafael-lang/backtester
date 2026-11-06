@@ -21,6 +21,8 @@ jobs:
           python-version: "3.12"
       - run: pip install pandas numpy pytrends
       - run: python indice/calcular.py
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
       - name: Guardar
         run: |
           git config user.name "banco-backtests"
