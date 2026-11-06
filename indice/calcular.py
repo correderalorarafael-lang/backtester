@@ -1,0 +1,199 @@
+"""Índice de valoración de BTC (0-100; 100 = zona de suelo/barato, 0 = zona de techo/caro).
+
+Seis componentes de 0 a 10 (F, R, E, L, D, I); total = media x 10. Fórmulas en indice.html y en PROMPT.md.
+Escribe data/indice.json. Si una fuente falla reutiliza su último valor guardado; si falla todo, no escribe nada.
+Uso: python indice/calcular.py
+"""
+import io
+import json
+import time
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+OUT = Path(__file__).resolve().parent.parent / "data" / "indice.json"
+UA = {"User-Agent": "banco-backtests/1.0"}
+DESDE = pd.Timestamp("2021-01-01")
+
+
+def get(url, intentos=4):
+    for i in range(intentos):
+        try:
+            return urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=60).read().decode()
+        except Exception:
+            if i == intentos - 1:
+                raise
+            time.sleep(5 * (i + 1))
+
+
+def fred(sid):
+    s = pd.read_csv(io.StringIO(get(f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={sid}&cosd=2018-01-01")),
+                    index_col=0, parse_dates=True).iloc[:, 0]
+    return pd.to_numeric(s, errors="coerce").dropna()
+
+
+def btc_diario():
+    """Velas diarias UTC de BTC-USDT al contado (OKX), solo cerradas."""
+    filas, after = [], ""
+    while True:
+        j = json.loads(get(f"https://www.okx.com/api/v5/market/history-candles?instId=BTC-USDT&bar=1Dutc&limit=100{after}"))
+        if not j["data"]:
+            break
+        filas += [r for r in j["data"] if r[8] == "1"]
+        after = f"&after={j['data'][-1][0]}"
+        if int(j["data"][-1][0]) < pd.Timestamp("2019-01-01").value // 10**6:
+            break
+        time.sleep(0.15)
+    s = pd.Series({pd.Timestamp(int(r[0]), unit="ms"): float(r[4]) for r in filas}).sort_index()
+    return s[~s.index.duplicated()]
+
+
+def ema(x, n):  # como TA-Lib: arranca con la media simple
+    out = np.full(len(x), np.nan)
+    if len(x) >= n:
+        out[n - 1] = x[:n].mean()
+        for i in range(n, len(x)):
+            out[i] = out[i - 1] + 2 / (n + 1) * (x[i] - out[i - 1])
+    return out
+
+
+def rsi(c, n=14):  # Wilder
+    d = np.diff(c, prepend=np.nan)
+    up, dn = np.clip(d, 0, None), np.clip(-d, 0, None)
+    au, ad = pd.Series(up).ewm(alpha=1 / n, adjust=False).mean(), pd.Series(dn).ewm(alpha=1 / n, adjust=False).mean()
+    return (100 - 100 / (1 + au / ad)).to_numpy()
+
+
+def pct_rank(s, ventana):
+    """Percentil (0-100) del valor de cada día dentro de la ventana anterior, incluido él mismo."""
+    return s.rolling(ventana, min_periods=ventana // 2).apply(lambda w: (w <= w[-1]).mean() * 100, raw=True)
+
+
+def punt(x):
+    return np.clip(np.round(x + 1e-9), 0, 10)
+
+
+# ---------- componentes: cada uno devuelve (serie diaria de puntos, serie diaria del dato bruto, detalle actual) ----------
+def comp_F(dias):
+    j = json.loads(get("https://api.alternative.me/fng/?limit=0&format=json"))
+    fg = pd.Series({pd.Timestamp(int(d["timestamp"]), unit="s").normalize(): int(d["value"]) for d in j["data"]}).sort_index()
+    m7 = fg.rolling(7).mean()
+    pts = punt((fg + m7) / 2 / 10)  # cuadra con el índice de referencia (MyC 50 y media 34,4 -> 4/10)
+    return pts.reindex(dias).ffill(), f"MyC actual {fg.iloc[-1]} | media 7 d {m7.iloc[-1]:.1f}"
+
+
+def comp_RE(precio):
+    c = precio.to_numpy()
+    r = pd.Series(rsi(c), index=precio.index)
+    e = pd.Series(ema(c, 200), index=precio.index)
+    dist = (precio / e - 1) * 100
+    return (punt(10 - r / 10), f"RSI 14 d {r.iloc[-1]:.1f}",
+            punt(5 - dist / 5), f"EMA 200 d {e.iloc[-1]:,.0f} ({dist.iloc[-1]:+.1f}%)".replace(",", "."))
+
+
+def comp_L(dias):
+    # Liquidez global aproximada en millones de USD: Fed (balance - TGA - repo inverso) + BCE + BoJ.
+    walcl, tga, rrp = fred("WALCL"), fred("WTREGEN"), fred("RRPONTSYD")
+    ecb, eur, boj, jpy = fred("ECBASSETSW"), fred("DEXUSEU"), fred("JPNASSETS"), fred("DEXJPUS")
+    sem = pd.date_range("2018-06-06", pd.Timestamp.today(), freq="W-WED")
+    f = lambda s: s.reindex(s.index.union(sem)).ffill().reindex(sem)  # noqa: E731
+    liq = f(walcl) - f(tga) - f(rrp) * 1000 + f(ecb) * f(eur) + f(boj) * 100 / f(jpy)
+    liq = liq.dropna()
+    var13 = liq / liq.shift(13) - 1
+    p = pct_rank(var13.dropna(), 52)
+    pts = punt(10 - p / 10)
+    det = f"Liquidez {liq.iloc[-1] / 1e6:.1f} B$ | var 13 sem {var13.iloc[-1] * 100:+.1f}% | P{p.iloc[-1]:.0f} del último año"
+    return pts.reindex(pts.index.union(dias)).ffill().reindex(dias), det
+
+
+def comp_D(dias):
+    try:
+        j = json.loads(get("https://query1.finance.yahoo.com/v8/finance/chart/DX-Y.NYB?range=10y&interval=1d"))["chart"]["result"][0]
+        dxy = pd.Series(j["indicators"]["quote"][0]["close"], index=pd.to_datetime(j["timestamp"], unit="s").normalize()).dropna()
+        fuente = "DXY (Yahoo)"
+    except Exception:
+        dxy, fuente = fred("DTWEXBGS"), "dólar amplio (FRED)"
+    dxy = dxy[~dxy.index.duplicated(keep="last")]
+    p = pct_rank(dxy, 1260)  # percentil en 5 años: dólar barato -> más puntos para BTC
+    pts = punt(10 - p / 10)
+    m1 = dxy.iloc[-1] / dxy.asof(dxy.index[-1] - pd.Timedelta(days=30)) - 1
+    det = f"{fuente} {dxy.iloc[-1]:.2f} | 1 mes {m1 * 100:+.2f}% | P{p.iloc[-1]:.0f} de 5 años"
+    return pts.reindex(pts.index.union(dias)).ffill().reindex(dias), det
+
+
+def comp_I(dias):
+    try:
+        from pytrends.request import TrendReq
+        tr = TrendReq(hl="es-ES", tz=0, timeout=(10, 30))
+        tr.build_payload(["bitcoin"], timeframe="all")  # escala 0-100 sobre todo el historial (máximo: dic 2017)
+        v = tr.interest_over_time()["bitcoin"].astype(float)
+        fuente = "Google Trends"
+    except Exception:
+        # Respaldo: visitas diarias al artículo "Bitcoin" de Wikipedia (media 7 días), escaladas a su máximo histórico.
+        fin = pd.Timestamp.today().strftime("%Y%m%d")
+        j = json.loads(get("https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/"
+                           f"Bitcoin/daily/20160101/{fin}"))
+        w = pd.Series({pd.Timestamp(d["timestamp"][:8]): d["views"] for d in j["items"]}).rolling(7).mean()
+        v = (w / w.cummax() * 100).dropna()
+        fuente = "visitas a Wikipedia (respaldo de Google Trends)"
+    pts = punt(10 - v / 10)
+    return pts.reindex(pts.index.union(dias)).ffill().reindex(dias), f"{fuente}: {v.iloc[-1]:.0f}/100"
+
+
+NOMBRES = {"F": "Miedo y codicia", "R": "RSI diario", "E": "EMA 200 diaria", "L": "Liquidez global", "D": "Dólar (DXY)",
+           "I": "Interés (búsquedas)"}
+
+
+def zona(t):
+    return ("Zona de techo" if t < 25 else "Caro" if t < 40 else "Zona neutral" if t < 65 else "Barato" if t < 80
+            else "Zona de suelo")
+
+
+def main():
+    previo = json.loads(OUT.read_text(encoding="utf-8")) if OUT.exists() else None
+    precio = btc_diario()
+    dias = precio.index[precio.index >= DESDE]
+    comps, detalles, fallos = {}, {}, []
+    R, dR, E, dE = comp_RE(precio)
+    comps["R"], detalles["R"], comps["E"], detalles["E"] = R.reindex(dias), dR, E.reindex(dias), dE
+    for letra, fn in (("F", comp_F), ("L", comp_L), ("D", comp_D), ("I", comp_I)):
+        try:
+            comps[letra], detalles[letra] = fn(dias)
+        except Exception as e:  # fuente caída: se reutiliza lo último guardado
+            fallos.append(f"{letra}: {e!r}"[:200])
+            if previo:
+                h = {r[0]: r[3 + "FRELDI".index(letra)] for r in previo["historia"]}
+                comps[letra] = pd.Series([h.get(d.strftime("%Y-%m-%d")) for d in dias], index=dias, dtype=float).ffill()
+                detalles[letra] = next(c["detalle"] for c in previo["actual"]["componentes"] if c["letra"] == letra) + " (sin actualizar)"
+            else:
+                comps[letra] = pd.Series(np.nan, index=dias)
+                detalles[letra] = "sin datos"
+    df = pd.DataFrame(comps)[list("FRELDI")]
+    df["total"] = (df.mean(axis=1, skipna=False) * 10).round()
+    df["precio"] = precio.reindex(dias)
+    df = df.dropna()
+    if df.empty:
+        raise SystemExit("Sin datos suficientes: no se sobrescribe el JSON. " + "; ".join(fallos))
+    ult = df.iloc[-1]
+    out = {
+        "actualizado": pd.Timestamp.now(tz="UTC").strftime("%Y-%m-%d %H:%M UTC"), "fecha": df.index[-1].strftime("%Y-%m-%d"),
+        "actual": {"total": int(ult.total), "zona": zona(ult.total), "precio": round(float(ult.precio), 2),
+                   "componentes": [{"letra": k, "nombre": NOMBRES[k], "puntos": int(ult[k]), "detalle": detalles[k]} for k in "FRELDI"]},
+        "historia": [[d.strftime("%Y-%m-%d"), int(r.total), round(float(r.precio), 2), *[int(r[k]) for k in "FRELDI"]]
+                     for d, r in df.iterrows()],
+        "fallos": fallos,
+    }
+    assert 0 <= out["actual"]["total"] <= 100 and len(out["historia"]) > 1000
+    OUT.parent.mkdir(exist_ok=True)
+    OUT.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+    print(f"{out['fecha']}: {out['actual']['total']}/100 ({out['actual']['zona']})")
+    for c in out["actual"]["componentes"]:
+        print(f"  {c['letra']} {c['nombre']}: {c['puntos']}/10 · {c['detalle']}")
+    print("fallos:", fallos or "ninguno")
+
+
+if __name__ == "__main__":
+    main()

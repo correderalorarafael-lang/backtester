@@ -1,0 +1,29 @@
+name: indice-btc
+
+on:
+  schedule:
+    - cron: "15 2 * * *"  # cada día a las 02:15 UTC, con la vela diaria de BTC ya cerrada
+  workflow_dispatch:
+
+permissions:
+  contents: write  # para guardar data/indice.json
+
+concurrency:
+  group: indice
+
+jobs:
+  calcular:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pandas numpy pytrends
+      - run: python indice/calcular.py
+      - name: Guardar
+        run: |
+          git config user.name "banco-backtests"
+          git config user.email "banco-backtests@users.noreply.github.com"
+          git add data/indice.json
+          git diff --cached --quiet || (git commit -m "índice $(date -u +%F)" && for i in 1 2 3 4 5; do git pull --rebase && git push && break; sleep 5; done)
