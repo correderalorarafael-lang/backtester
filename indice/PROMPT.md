@@ -9,11 +9,11 @@ Construye un índice compuesto 0-100 que diga si Bitcoin está barato (100 = zon
 
 | Letra | Componente | Fuente | Puntuación |
 |---|---|---|---|
-| F | Miedo y codicia | api.alternative.me/fng (diario) | (70 − (valor actual + media 7 días)/2)/6 (miedo = barato). 10-nov-2026: corregido (iba al revés) y ajustado a las lecturas del índice de referencia |
-| R | RSI 14 diario (Wilder) | velas diarias BTC-USDT de OKX | (70 − RSI)/4 (30 → 10, 70 → 0; ajustado al índice de referencia el 10-nov-2026) |
-| E | Distancia a la EMA 200 diaria | OKX | 5 − distancia%/5 (−25% → 10, +25% → 0) |
+| F | Miedo y codicia | api.alternative.me/fng (diario) | (65 − (valor actual + media 7 días)/2)/5 (miedo = barato). 10-nov-2026: corregido (iba al revés) y ajustado a tres lecturas del índice de referencia (4, 5 y 10-nov) |
+| R | RSI 14 diario (Wilder) | velas diarias BTC-USDT de OKX | (80 − RSI)/5 (30 → 10, 80 → 0; ajustado a la referencia) |
+| E | Distancia a la EMA 200 diaria | OKX | 5 − distancia%/10 (−50% → 10, +50% → 0; ajustado a la referencia) |
 | L | Liquidez global (Fed neta + BCE + BoJ, en USD) | FRED: WALCL − WTREGEN − RRPONTSYD + ECBASSETSW×DEXUSEU + JPNASSETS/DEXJPUS | percentil P del cambio a 13 semanas dentro del último año; 10 − P/10 |
-| D | Índice del dólar (DXY) | Yahoo DX-Y.NYB (respaldo FRED DTWEXBGS) | percentil P del nivel en 5 años; 10 − P/10; mostrar cambio a 1 mes |
+| D | Índice del dólar (DXY) | Yahoo DX-Y.NYB (respaldo FRED DTWEXBGS) | 10 − distancia % a su media de 200 días (mejor ajuste a la referencia con 3 lecturas); mostrar cambio a 1 mes |
 | I | Interés (búsquedas "bitcoin") | Google Trends desde 2004 (pytrends); si falla, visitas a Wikipedia "Bitcoin" escaladas a su máximo | 10 − valor/10 |
 
 Zonas del total: 0-25 techo, 25-40 caro, 40-65 neutral, 65-80 barato, 80-100 suelo.

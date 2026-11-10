@@ -88,9 +88,9 @@ def comp_F(dias):
     j = json.loads(get("https://api.alternative.me/fng/?limit=0&format=json"))
     fg = pd.Series({pd.Timestamp(int(d["timestamp"]), unit="s").normalize(): int(d["value"]) for d in j["data"]}).sort_index()
     m7 = fg.rolling(7).mean()
-    # miedo = barato: 10 con media <= 10, 0 con media >= 70. Cuadra con el índice de referencia en sus dos lecturas:
-    # (32 + 32,3)/2 -> 6/10 y (50 + 34,4)/2 -> 4/10
-    pts = punt((70 - (fg + m7) / 2) / 6)
+    # miedo = barato: 10 con media <= 15, 0 con media >= 65. Ajustado a tres lecturas del índice de referencia (4, 5 y
+    # 10-nov-2026): (34 + 34,6)/2 -> 6, (50 + 34,4)/2 -> 4, (32 + 32,3)/2 -> 6
+    pts = punt((65 - (fg + m7) / 2) / 5)
     return pts.reindex(dias).ffill(), f"MyC actual {fg.iloc[-1]} | media 7 d {m7.iloc[-1]:.1f}"
 
 
@@ -99,8 +99,10 @@ def comp_RE(precio):
     r = pd.Series(rsi(c), index=precio.index)
     e = pd.Series(ema(c, 200), index=precio.index)
     dist = (precio / e - 1) * 100
-    return (punt((70 - r) / 4), f"RSI 14 d {r.iloc[-1]:.1f}",  # RSI 30 -> 10, 70 -> 0 (referencia: 35,9 -> 8/10)
-            punt(5 - dist / 5), f"EMA 200 d {e.iloc[-1]:,.0f} ({dist.iloc[-1]:+.1f}%)".replace(",", "."))
+    # RSI 30 -> 10, 80 -> 0 (referencia: 35,6 -> 8, 50,9 -> 5, 35,9 -> 8); EMA: -50 % -> 10, +50 % -> 0
+    # (referencia: -0,1 % -> 5, +5,1 % -> 4, -2,6 % -> 5)
+    return (punt((80 - r) / 5), f"RSI 14 d {r.iloc[-1]:.1f}",
+            punt(5 - dist / 10), f"EMA 200 d {e.iloc[-1]:,.0f} ({dist.iloc[-1]:+.1f}%)".replace(",", "."))
 
 
 def comp_L(dias):
@@ -126,10 +128,12 @@ def comp_D(dias):
     except Exception:
         dxy, fuente = fred("DTWEXBGS"), "dólar amplio (FRED)"
     dxy = dxy[~dxy.index.duplicated(keep="last")]
-    p = pct_rank(dxy, 1260)  # percentil en 5 años: dólar barato -> más puntos para BTC
-    pts = punt(10 - p / 10)
+    # dólar estirado por encima de su media de 200 días = malo para BTC. Mejor ajuste a tres lecturas del índice de
+    # referencia (4, 5 y 10-nov-2026: +2,22 % -> 7, +1,85 % -> 8, +1,93 % -> 8); con más lecturas puede afinarse
+    dist = (dxy / dxy.rolling(200).mean() - 1) * 100
+    pts = punt(10 - dist)
     m1 = dxy.iloc[-1] / dxy.asof(dxy.index[-1] - pd.Timedelta(days=30)) - 1
-    det = f"{fuente} {dxy.iloc[-1]:.2f} | 1 mes {m1 * 100:+.2f}% | P{p.iloc[-1]:.0f} de 5 años"
+    det = f"{fuente} {dxy.iloc[-1]:.2f} | 1 mes {m1 * 100:+.2f}% | {dist.iloc[-1]:+.2f}% sobre su media de 200 d"
     return pts.reindex(pts.index.union(dias)).ffill().reindex(dias), det
 
 
