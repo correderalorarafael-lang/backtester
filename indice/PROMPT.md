@@ -12,7 +12,7 @@ Construye un índice compuesto 0-100 que diga si Bitcoin está barato (100 = zon
 | F | Miedo y codicia | api.alternative.me/fng (diario) | (65 − (valor actual + media 7 días)/2)/5 (miedo = barato). 10-nov-2026: corregido (iba al revés) y ajustado a tres lecturas del índice de referencia (4, 5 y 10-nov) |
 | R | RSI 14 diario (Wilder) | velas diarias BTC-USDT de OKX | (80 − RSI)/5 (30 → 10, 80 → 0; ajustado a la referencia) |
 | E | Distancia a la EMA 200 diaria | OKX | 5 − distancia%/10 (−50% → 10, +50% → 0; ajustado a la referencia) |
-| L | Liquidez global (Fed neta + BCE + BoJ, en USD) | FRED: WALCL − WTREGEN − RRPONTSYD + ECBASSETSW×DEXUSEU + JPNASSETS/DEXJPUS | percentil P del cambio a 13 semanas dentro del último año; 10 − P/10 |
+| L | Liquidez global = M2 global en USD (EE. UU. + zona euro + Japón + China + Reino Unido, al cambio diario) | FRED M2SL + BCE (M2 zona euro) + OCDE MABMM301 JP/CN/GB (último valor publicado) con DEXUSEU, DEXJPUS, DEXCHUS, DEXUSUK | percentil P del cambio a 91 días dentro del último año; 10 − P/10 (10-nov-2026: cambiado para cuadrar con la referencia) |
 | D | Índice del dólar (DXY) | Yahoo DX-Y.NYB (respaldo FRED DTWEXBGS) | 10 − distancia % a su media de 200 días (mejor ajuste a la referencia con 3 lecturas); mostrar cambio a 1 mes |
 | I | Interés (búsquedas "bitcoin") | Google Trends desde 2004 (pytrends); si falla, visitas a Wikipedia "Bitcoin" escaladas a su máximo | 10 − valor/10 |
 

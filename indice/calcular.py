@@ -105,18 +105,33 @@ def comp_RE(precio):
             punt(5 - dist / 10), f"EMA 200 d {e.iloc[-1]:,.0f} ({dist.iloc[-1]:+.1f}%)".replace(",", "."))
 
 
+def m2_eurozona():
+    """M2 de la zona euro en EUR, mensual, del BCE (al día); si falla, la serie de la OCDE en FRED (parada en 2023)."""
+    try:
+        d = pd.read_csv(io.StringIO(get("https://data-api.ecb.europa.eu/service/data/BSI/M.U2.Y.V.M20.X.1.U2.2300.Z01.E"
+                                        "?format=csvdata&startPeriod=2017-01")))
+        return pd.Series(d.OBS_VALUE.to_numpy(float) * 10.0 ** d.UNIT_MULT.to_numpy(float),
+                         index=pd.to_datetime(d.TIME_PERIOD)).sort_index(), "BCE"
+    except Exception:
+        return fred("MABMM301EZM189S"), "OCDE"
+
+
 def comp_L(dias):
-    # Liquidez global aproximada en millones de USD: Fed (balance - TGA - repo inverso) + BCE + BoJ.
-    walcl, tga, rrp = fred("WALCL"), fred("WTREGEN"), fred("RRPONTSYD")
-    ecb, eur, boj, jpy = fred("ECBASSETSW"), fred("DEXUSEU"), fred("JPNASSETS"), fred("DEXJPUS")
-    sem = pd.date_range("2018-06-06", pd.Timestamp.today(), freq="W-WED")
-    f = lambda s: s.reindex(s.index.union(sem)).ffill().reindex(sem)  # noqa: E731
-    liq = f(walcl) - f(tga) - f(rrp) * 1000 + f(ecb) * f(eur) + f(boj) * 100 / f(jpy)
-    liq = liq.dropna()
-    var13 = liq / liq.shift(13) - 1
-    p = pct_rank(var13.dropna(), 52)
+    # Liquidez global = masa monetaria M2 de EE. UU. + zona euro + Japón + China + Reino Unido, en dólares al tipo de
+    # cambio de cada día (por eso se mueve a diario con el dólar). Percentil del cambio a 91 días dentro del último año.
+    # Con esta medida salen las tres lecturas del índice de referencia (4, 5 y 10-nov-2026: L 8, 8, 9).
+    # shortcut: el M2 de Japón, China y Reino Unido de la OCDE dejó de publicarse (2023; China 2018) y se usa su último
+    # valor convertido con el tipo de cambio del día; si se encuentra una fuente gratuita al día, cambiarla aquí.
+    dia = pd.date_range("2018-01-01", pd.Timestamp.today().normalize(), freq="D")
+    f = lambda s: s.reindex(s.index.union(dia)).ffill().reindex(dia)  # noqa: E731
+    ez, fuente_ez = m2_eurozona()
+    liq = (f(fred("M2SL")) * 1e9 + f(ez) * f(fred("DEXUSEU")) + f(fred("MABMM301JPM189S")) / f(fred("DEXJPUS"))
+           + f(fred("MABMM301CNM189S")) / f(fred("DEXCHUS")) + f(fred("MABMM301GBM189S")) * f(fred("DEXUSUK"))).dropna()
+    var = liq / liq.shift(91) - 1
+    p = pct_rank(var.dropna(), 365)
     pts = punt(10 - p / 10)
-    det = f"Liquidez {liq.iloc[-1] / 1e6:.1f} B$ | var 13 sem {var13.iloc[-1] * 100:+.1f}% | P{p.iloc[-1]:.0f} del último año"
+    det = (f"M2 global {liq.iloc[-1] / 1e12:.1f} billones $ | var 91 d {var.iloc[-1] * 100:+.1f}% | "
+           f"P{p.iloc[-1]:.0f} del último año (zona euro: {fuente_ez})")
     return pts.reindex(pts.index.union(dias)).ffill().reindex(dias), det
 
 

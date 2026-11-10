@@ -107,7 +107,7 @@ td:first-child { font-weight: 700; }
         <tr><td style="color:var(--F)">F</td><td>Miedo y codicia</td><td>Índice de alternative.me: valor del día y media de 7 días</td><td>(65 − (día + media 7 d) ÷ 2) ÷ 5 (media ≤ 15 → 10, ≥ 65 → 0)</td></tr>
         <tr><td style="color:var(--R)">R</td><td>RSI diario</td><td>RSI de 14 días (Wilder) del BTC al contado en OKX</td><td>(80 − RSI) ÷ 5 (RSI 30 → 10, 80 → 0)</td></tr>
         <tr><td style="color:var(--E)">E</td><td>EMA 200 diaria</td><td>Distancia del precio a su media exponencial de 200 días</td><td>5 − distancia % ÷ 10 (−50% = 10, +50% = 0)</td></tr>
-        <tr><td style="color:var(--L)">L</td><td>Liquidez global</td><td>Fed (balance − cuenta del Tesoro − repo inverso) + BCE + Banco de Japón, en dólares (FRED). Cambio a 13 semanas</td><td>Percentil P de ese cambio en el último año: 10 − P ÷ 10</td></tr>
+        <tr><td style="color:var(--L)">L</td><td>Liquidez global</td><td>Masa monetaria M2 de EE. UU., zona euro, Japón, China y Reino Unido en dólares al cambio de cada día (FRED y BCE). Cambio a 91 días</td><td>Percentil P de ese cambio en el último año: 10 − P ÷ 10</td></tr>
         <tr><td style="color:var(--D)">D</td><td>Dólar (DXY)</td><td>Índice del dólar (Yahoo; respaldo: dólar amplio de FRED)</td><td>10 − distancia % del DXY a su media de 200 días (dólar estirado = malo para BTC)</td></tr>
         <tr><td style="color:var(--I)">I</td><td>Interés</td><td>Búsquedas de «bitcoin» en Google Trends, escala 0-100 sobre todo el historial (respaldo: visitas a Wikipedia)</td><td>10 − valor ÷ 10</td></tr>
       </tbody>
