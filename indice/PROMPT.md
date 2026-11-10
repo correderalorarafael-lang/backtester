@@ -5,12 +5,12 @@
 - Velas de BTC: API pública de OKX. Sin claves de pago. Los datos se calculan en GitHub Actions (Python 3.12 + pandas) y la página solo lee un JSON del propio repo.
 
 ## Tarea
-Construye un índice compuesto 0-100 que diga si Bitcoin está barato (100 = zona de suelo) o caro (0 = zona de techo), con 6 componentes puntuados de 0 a 10 (entero, redondeado y acotado), y total = media de los 6 × 10, redondeado.
+Construye un índice compuesto 0-100 que diga si Bitcoin está barato (100 = zona de suelo) o caro (0 = zona de techo), con 6 componentes puntuados de 0 a 10 (entero, redondeado hacia abajo y acotado), y total = media de los 6 × 10, redondeado.
 
 | Letra | Componente | Fuente | Puntuación |
 |---|---|---|---|
-| F | Miedo y codicia | api.alternative.me/fng (diario) | 10 − (valor actual + media 7 días)/2/10 (miedo = barato; corregido el 10-nov-2026, antes iba al revés) |
-| R | RSI 14 diario (Wilder) | velas diarias BTC-USDT de OKX | 10 − RSI/10 |
+| F | Miedo y codicia | api.alternative.me/fng (diario) | (70 − (valor actual + media 7 días)/2)/6 (miedo = barato). 10-nov-2026: corregido (iba al revés) y ajustado a las lecturas del índice de referencia |
+| R | RSI 14 diario (Wilder) | velas diarias BTC-USDT de OKX | (70 − RSI)/4 (30 → 10, 70 → 0; ajustado al índice de referencia el 10-nov-2026) |
 | E | Distancia a la EMA 200 diaria | OKX | 5 − distancia%/5 (−25% → 10, +25% → 0) |
 | L | Liquidez global (Fed neta + BCE + BoJ, en USD) | FRED: WALCL − WTREGEN − RRPONTSYD + ECBASSETSW×DEXUSEU + JPNASSETS/DEXJPUS | percentil P del cambio a 13 semanas dentro del último año; 10 − P/10 |
 | D | Índice del dólar (DXY) | Yahoo DX-Y.NYB (respaldo FRED DTWEXBGS) | percentil P del nivel en 5 años; 10 − P/10; mostrar cambio a 1 mes |

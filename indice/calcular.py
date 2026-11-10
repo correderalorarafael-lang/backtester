@@ -80,7 +80,7 @@ def pct_rank(s, ventana):
 
 
 def punt(x):
-    return np.clip(np.round(x + 1e-9), 0, 10)
+    return np.clip(np.floor(x + 1e-9), 0, 10)  # hacia abajo, como el índice de referencia (EMA -2,6 % -> 5,5 -> 5)
 
 
 # ---------- componentes: cada uno devuelve (serie diaria de puntos, serie diaria del dato bruto, detalle actual) ----------
@@ -88,7 +88,9 @@ def comp_F(dias):
     j = json.loads(get("https://api.alternative.me/fng/?limit=0&format=json"))
     fg = pd.Series({pd.Timestamp(int(d["timestamp"]), unit="s").normalize(): int(d["value"]) for d in j["data"]}).sort_index()
     m7 = fg.rolling(7).mean()
-    pts = punt(10 - (fg + m7) / 2 / 10)  # miedo (valor bajo) = barato = puntos altos, como el resto de componentes
+    # miedo = barato: 10 con media <= 10, 0 con media >= 70. Cuadra con el índice de referencia en sus dos lecturas:
+    # (32 + 32,3)/2 -> 6/10 y (50 + 34,4)/2 -> 4/10
+    pts = punt((70 - (fg + m7) / 2) / 6)
     return pts.reindex(dias).ffill(), f"MyC actual {fg.iloc[-1]} | media 7 d {m7.iloc[-1]:.1f}"
 
 
@@ -97,7 +99,7 @@ def comp_RE(precio):
     r = pd.Series(rsi(c), index=precio.index)
     e = pd.Series(ema(c, 200), index=precio.index)
     dist = (precio / e - 1) * 100
-    return (punt(10 - r / 10), f"RSI 14 d {r.iloc[-1]:.1f}",
+    return (punt((70 - r) / 4), f"RSI 14 d {r.iloc[-1]:.1f}",  # RSI 30 -> 10, 70 -> 0 (referencia: 35,9 -> 8/10)
             punt(5 - dist / 5), f"EMA 200 d {e.iloc[-1]:,.0f} ({dist.iloc[-1]:+.1f}%)".replace(",", "."))
 
 
