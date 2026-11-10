@@ -104,7 +104,7 @@ td:first-child { font-weight: 700; }
     <div class="scroll"><table>
       <thead><tr><th>Letra</th><th>Componente</th><th>Dato</th><th>Puntos</th></tr></thead>
       <tbody>
-        <tr><td style="color:var(--F)">F</td><td>Miedo y codicia</td><td>Índice de alternative.me: valor del día y media de 7 días</td><td>(día + media 7 d) ÷ 2 ÷ 10</td></tr>
+        <tr><td style="color:var(--F)">F</td><td>Miedo y codicia</td><td>Índice de alternative.me: valor del día y media de 7 días</td><td>10 − (día + media 7 d) ÷ 2 ÷ 10 (miedo = barato)</td></tr>
         <tr><td style="color:var(--R)">R</td><td>RSI diario</td><td>RSI de 14 días (Wilder) del BTC al contado en OKX</td><td>10 − RSI ÷ 10</td></tr>
         <tr><td style="color:var(--E)">E</td><td>EMA 200 diaria</td><td>Distancia del precio a su media exponencial de 200 días</td><td>5 − distancia % ÷ 5 (−25% = 10, +25% = 0)</td></tr>
         <tr><td style="color:var(--L)">L</td><td>Liquidez global</td><td>Fed (balance − cuenta del Tesoro − repo inverso) + BCE + Banco de Japón, en dólares (FRED). Cambio a 13 semanas</td><td>Percentil P de ese cambio en el último año: 10 − P ÷ 10</td></tr>

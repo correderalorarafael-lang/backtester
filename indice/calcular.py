@@ -88,7 +88,7 @@ def comp_F(dias):
     j = json.loads(get("https://api.alternative.me/fng/?limit=0&format=json"))
     fg = pd.Series({pd.Timestamp(int(d["timestamp"]), unit="s").normalize(): int(d["value"]) for d in j["data"]}).sort_index()
     m7 = fg.rolling(7).mean()
-    pts = punt((fg + m7) / 2 / 10)  # cuadra con el índice de referencia (MyC 50 y media 34,4 -> 4/10)
+    pts = punt(10 - (fg + m7) / 2 / 10)  # miedo (valor bajo) = barato = puntos altos, como el resto de componentes
     return pts.reindex(dias).ffill(), f"MyC actual {fg.iloc[-1]} | media 7 d {m7.iloc[-1]:.1f}"
 
 

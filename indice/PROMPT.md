@@ -9,7 +9,7 @@ Construye un índice compuesto 0-100 que diga si Bitcoin está barato (100 = zon
 
 | Letra | Componente | Fuente | Puntuación |
 |---|---|---|---|
-| F | Miedo y codicia | api.alternative.me/fng (diario) | (valor actual + media 7 días)/2/10 (cuadra con la captura de referencia) |
+| F | Miedo y codicia | api.alternative.me/fng (diario) | 10 − (valor actual + media 7 días)/2/10 (miedo = barato; corregido el 10-nov-2026, antes iba al revés) |
 | R | RSI 14 diario (Wilder) | velas diarias BTC-USDT de OKX | 10 − RSI/10 |
 | E | Distancia a la EMA 200 diaria | OKX | 5 − distancia%/5 (−25% → 10, +25% → 0) |
 | L | Liquidez global (Fed neta + BCE + BoJ, en USD) | FRED: WALCL − WTREGEN − RRPONTSYD + ECBASSETSW×DEXUSEU + JPNASSETS/DEXJPUS | percentil P del cambio a 13 semanas dentro del último año; 10 − P/10 |
