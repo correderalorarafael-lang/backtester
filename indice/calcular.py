@@ -99,10 +99,10 @@ def comp_RE(precio):
     r = pd.Series(rsi(c), index=precio.index)
     e = pd.Series(ema(c, 200), index=precio.index)
     dist = (precio / e - 1) * 100
-    # RSI 30 -> 10, 80 -> 0 (referencia: 35,6 -> 8, 50,9 -> 5, 35,9 -> 8); EMA: -50 % -> 10, +50 % -> 0
-    # (referencia: -0,1 % -> 5, +5,1 % -> 4, -2,6 % -> 5)
-    return (punt((80 - r) / 5), f"RSI 14 d {r.iloc[-1]:.1f}",
-            punt(5 - dist / 10), f"EMA 200 d {e.iloc[-1]:,.0f} ({dist.iloc[-1]:+.1f}%)".replace(",", "."))
+    # RSI 25 -> 10, 85 -> 0 (referencia: 35,6 -> 8, 50,9 -> 5, 35,9 -> 8, 25,6 -> 9); EMA: -40 % -> 10, +40 % -> 0
+    # (referencia: -0,1 % -> 5, +5,1 % -> 4, -2,6 % -> 5, -9,7 % -> 6). Ajuste del 13-nov-2026 con 4 lecturas de cada una
+    return (punt((85 - r) / 6), f"RSI 14 d {r.iloc[-1]:.1f}",
+            punt(5 - dist / 8), f"EMA 200 d {e.iloc[-1]:,.0f} ({dist.iloc[-1]:+.1f}%)".replace(",", "."))
 
 
 def m2_eurozona():
@@ -143,11 +143,14 @@ def comp_D(dias):
     except Exception:
         dxy, fuente = fred("DTWEXBGS"), "dólar amplio (FRED)"
     dxy = dxy[~dxy.index.duplicated(keep="last")]
-    # dólar estirado por encima de su media de 200 días = malo para BTC. Mejor ajuste a tres lecturas del índice de
-    # referencia (4, 5 y 10-nov-2026: +2,22 % -> 7, +1,85 % -> 8, +1,93 % -> 8); con más lecturas puede afinarse
+    # nota = 8,5 + variación del DXY en 1 mes (%): la única que cuadra con las 4 lecturas del índice de referencia
+    # (1 mes -0,56 % -> 7, -0,42 % -> 8, -0,2 % -> 8, +0,65 % -> 9; 13-nov-2026). Dólar que sube = presión sobre BTC =
+    # BTC más barato = más puntos (cuanto más alto el índice, más barato). La media de 200 días ya no cuadraba
+    hace_1m = dxy.asof(dxy.index - pd.Timedelta(days=30))
+    var_1m = pd.Series(dxy.to_numpy() / hace_1m.to_numpy() - 1, index=dxy.index) * 100
+    pts = punt(8.5 + var_1m)
     dist = (dxy / dxy.rolling(200).mean() - 1) * 100
-    pts = punt(10 - dist)
-    m1 = dxy.iloc[-1] / dxy.asof(dxy.index[-1] - pd.Timedelta(days=30)) - 1
+    m1 = var_1m.iloc[-1] / 100
     det = f"{fuente} {dxy.iloc[-1]:.2f} | 1 mes {m1 * 100:+.2f}% | {dist.iloc[-1]:+.2f}% sobre su media de 200 d"
     return pts.reindex(pts.index.union(dias)).ffill().reindex(dias), det
 
